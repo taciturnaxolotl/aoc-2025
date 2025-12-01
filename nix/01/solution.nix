@@ -1,5 +1,5 @@
 let
-  input = builtins.readFile ./input.txt;
+  input = builtins.readFile ../../shared/01/input.txt;
   lines = builtins.filter (s: builtins.isString s && s != "") (builtins.split "\n" input);
   
   mod = a: b: a - (a / b) * b;

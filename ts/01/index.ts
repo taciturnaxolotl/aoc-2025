@@ -1,4 +1,4 @@
-const file = await Bun.file("./input.txt").text();
+const file = await Bun.file("../../shared/01/input.txt").text();
 
 (() => {
 	let dial = 50;
