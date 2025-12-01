@@ -2,6 +2,11 @@
 
 This contains my solutions to advent of code 2025 in mostly `ts` or `nix` depending on how lazy I'm feeling that day.
 
+```bash
+bun run index.ts
+nix-instantiate --eval --strict solution.nix
+```
+
 The main repo is [the tangled repo](https://tangled.org/dunkirk.sh/aoc-2025) and the github is just a mirror.
 
 <p align="center">
