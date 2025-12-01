@@ -1,10 +1,22 @@
 # Advent of Code 2025 - Kieran's way
 
+![made with vhs](https://vhs.charm.sh/vhs-4Iru9nKzVVROVumbtUEW20.gif)
+
 This contains my solutions to advent of code 2025 in mostly `ts` or `nix` depending on how lazy I'm feeling that day.
 
+## Running Solutions
+
+Either you can run the days manually or you can use direnv and the `aoc` tui I made!
+
 ```bash
-bun run index.ts
-nix-instantiate --eval --strict solution.nix
+echo "use flake" >> .envrc && direnv allow
+```
+
+the rather boring manual way:
+
+```bash
+cd ts/01 && bun run index.ts
+nix-instantiate --eval --strict nix/01/solution.nix
 ```
 
 The main repo is [the tangled repo](https://tangled.org/dunkirk.sh/aoc-2025) and the github is just a mirror.
