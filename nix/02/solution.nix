@@ -11,64 +11,126 @@ let
              end = builtins.fromJSON (builtins.elemAt parts 1); };
     in map parseRange rangeStrings;
   
-  # Convert number to string digits
-  numToStr = n: builtins.toString n;
-  
-  # Check if string has even length and halves are equal
-  hasEqualHalves = str:
-    let len = builtins.stringLength str;
-        half = len / 2;
-    in if len == 0 || (len / 2 * 2) != len then false
-       else (builtins.substring 0 half str) == (builtins.substring half half str);
-  
-  # Check if string is repeating pattern of given chunk size
-  isRepeating = str: chunkSize:
-    let 
-      len = builtins.stringLength str;
-      chunk = builtins.substring 0 chunkSize str;
-      checkPos = pos: 
-        if pos >= len then true
-        else if (builtins.substring pos chunkSize str) != chunk then false
-        else checkPos (pos + chunkSize);
-    in if len == 0 || (len / chunkSize * chunkSize) != len then false
-       else checkPos 0;
-  
-  # Find smallest repeating chunk size for a string
-  hasRepeatingPattern = str:
-    let 
-      len = builtins.stringLength str;
-      checkSize = size:
-        if size > len / 2 then false
-        else if isRepeating str size then true
-        else checkSize (size + 1);
-    in if len == 0 then false else checkSize 1;
-  
-  # Process range in batches to avoid stack overflow
-  sumRangeIf = predicate: start: end:
+  # Generate all numbers with equal halves in a range
+  generateEqualHalves = start: end:
     let
-      batchSize = 10000;
-      numBatches = ((end - start + 1) + batchSize - 1) / batchSize;
+      startLen = builtins.stringLength (builtins.toString start);
+      endLen = builtins.stringLength (builtins.toString end);
       
-      processBatch = i:
+      # For even digit counts, generate patterns directly
+      generateForDigits = numDigits:
         let
-          batchStart = start + i * batchSize;
-          batchEnd = if batchStart + batchSize - 1 < end then batchStart + batchSize - 1 else end;
-          nums = builtins.genList (n: batchStart + n) (batchEnd - batchStart + 1);
-          validNums = builtins.filter predicate nums;
-        in builtins.foldl' (a: n: a + n) 0 validNums;
-        
-    in builtins.foldl' (acc: i: acc + processBatch i) 0 (builtins.genList (i: i) numBatches);
+          halfDigits = numDigits / 2;
+          isEven = (numDigits - halfDigits * 2) == 0;
+        in
+        if !isEven || numDigits < 2 then []
+        else
+          let
+            # Calculate 10^halfDigits for multiplier
+            multiplier = builtins.foldl' (a: _: a * 10) 1 (builtins.genList (x: x) halfDigits);
+            halfMin = multiplier / 10;
+            halfMax = multiplier - 1;
+            
+            # Generate number from half: n = half * (10^half + 1)
+            makeNum = half: half * (multiplier + 1);
+            
+            minVal = makeNum halfMin;
+            maxVal = makeNum halfMax;
+            
+            # Only generate if range overlaps
+            actualMin = if minVal < start then 
+                          let h = (start + multiplier) / (multiplier + 1); in if makeNum h >= start then h else h + 1
+                        else halfMin;
+            actualMax = if maxVal > end then
+                          end / (multiplier + 1)
+                        else halfMax;
+            
+            count = if actualMax >= actualMin then actualMax - actualMin + 1 else 0;
+          in
+          if count > 0 then builtins.genList (i: makeNum (actualMin + i)) count else [];
+      
+      allDigits = builtins.genList (d: startLen + d) (endLen - startLen + 1);
+      allNums = builtins.concatMap generateForDigits allDigits;
+    in allNums;
+  
+  # Generate all repeating pattern numbers in a range  
+  generateRepeating = start: end:
+    let
+      startLen = builtins.stringLength (builtins.toString start);
+      endLen = builtins.stringLength (builtins.toString end);
+      
+      # Calculate 10^n efficiently
+      pow10 = n: builtins.foldl' (a: _: a * 10) 1 (builtins.genList (x: x) n);
+      
+      # Generate numbers with specific total length and chunk size
+      generateForPattern = totalDigits: chunkSize:
+        let
+          reps = totalDigits / chunkSize;
+          isValid = (totalDigits - reps * chunkSize) == 0 && chunkSize * 2 <= totalDigits;
+        in
+        if !isValid then []
+        else
+          let
+            # Calculate multiplier for repeating: e.g., for 3 reps of 2 digits: 10^4 + 10^2 + 1
+            calcMultiplier = 
+              let terms = builtins.genList (i: pow10 (i * chunkSize)) reps;
+              in builtins.foldl' builtins.add 0 terms;
+            
+            multiplier = calcMultiplier;
+            chunkMin = pow10 (chunkSize - 1);
+            chunkMax = pow10 chunkSize - 1;
+            
+            makeNum = chunk: chunk * multiplier;
+            
+            minVal = makeNum chunkMin;
+            maxVal = makeNum chunkMax;
+            
+            # Calculate actual range
+            actualMin = if minVal < start then
+                          let c = (start + multiplier - 1) / multiplier; 
+                          in if c > chunkMax then chunkMax + 1 else if c < chunkMin then chunkMin else c
+                        else chunkMin;
+            actualMax = if maxVal > end then
+                          end / multiplier
+                        else chunkMax;
+            
+            count = if actualMax >= actualMin then actualMax - actualMin + 1 else 0;
+            nums = if count > 0 then builtins.genList (i: makeNum (actualMin + i)) count else [];
+            filtered = builtins.filter (n: n >= start && n <= end) nums;
+          in filtered;
+      
+      # For each digit count, try all valid chunk sizes
+      generateForDigits = numDigits:
+        let
+          maxChunk = numDigits / 2;
+          validChunks = builtins.filter 
+            (c: (numDigits - numDigits / c * c) == 0) 
+            (builtins.genList (i: i + 1) maxChunk);
+        in builtins.concatMap (c: generateForPattern numDigits c) validChunks;
+      
+      allDigits = builtins.genList (d: startLen + d) (endLen - startLen + 1);
+      allNums = builtins.concatLists (map generateForDigits allDigits);
+      
+      # Remove duplicates efficiently using sort
+      sorted = builtins.sort (a: b: a < b) allNums;
+      dedupe = builtins.foldl' 
+        (acc: n: if acc.prev == n then acc else { prev = n; list = acc.list ++ [n]; })
+        { prev = -1; list = []; }
+        sorted;
+    in dedupe.list;
   
   part1 =
     let
       processRange = acc: r:
-        acc + sumRangeIf (n: hasEqualHalves (numToStr n)) r.start r.end;
+        let nums = generateEqualHalves r.start r.end;
+        in acc + builtins.foldl' builtins.add 0 nums;
     in builtins.foldl' processRange 0 ranges;
   
   part2 =
     let
       processRange = acc: r:
-        acc + sumRangeIf (n: hasRepeatingPattern (numToStr n)) r.start r.end;
+        let nums = generateRepeating r.start r.end;
+        in acc + builtins.foldl' builtins.add 0 nums;
     in builtins.foldl' processRange 0 ranges;
 
 in {
