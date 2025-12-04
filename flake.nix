@@ -26,21 +26,6 @@
           echo "''${days[@]}" | tr ' ' '\n' | sort
         '';
         
-        # Run a specific day's solution
-        runDay = day: lang: ''
-          if [ "$lang" = "ts" ] && [ -f "ts/${day}/index.ts" ]; then
-            ${gum}/bin/gum style --border rounded --border-foreground 212 --padding "0 1" --margin "1 0" "Day ${day} (TypeScript)"
-            (cd ts/${day} && ${pkgs.bun}/bin/bun run index.ts)
-          elif [ "$lang" = "nix" ] && [ -f "nix/${day}/solution.nix" ]; then
-            ${gum}/bin/gum style --border rounded --border-foreground 212 --padding "0 1" --margin "1 0" "Day ${day} (Nix)"
-            result=$(${pkgs.nix}/bin/nix-instantiate --eval --strict --json nix/${day}/solution.nix)
-            part1=$(echo "$result" | ${pkgs.jq}/bin/jq -r '.part1')
-            part2=$(echo "$result" | ${pkgs.jq}/bin/jq -r '.part2')
-            echo "part 1: $part1"
-            echo "part 2: $part2"
-          fi
-        '';
-        
         # Interactive runner with gum
         runner = pkgs.writeShellScriptBin "aoc" ''
           set -e
@@ -53,7 +38,7 @@
             "$(${gum}/bin/gum style --foreground 212 '🎄 Advent of Code 2025 🎄')"
           
           # Choose action
-          action=$(${gum}/bin/gum choose "Run specific day" "Run all solutions" "Exit")
+          action=$(${gum}/bin/gum choose "Run specific day" "Run all solutions" "Init new day" "Exit")
           
           case "$action" in
             "Run specific day")
@@ -141,6 +126,111 @@
                   echo ""
                 fi
               done
+              ;;
+
+            "Init new day")
+              # Get all existing days
+              all_days=()
+              for dir in ts/* nix/* shared/*; do
+                if [ -d "$dir" ]; then
+                  day=$(basename "$dir")
+                  if [[ "$day" =~ ^[0-9]+$ ]]; then
+                    all_days+=("$day")
+                  fi
+                fi
+              done
+              
+              # Find next day number
+              next_day=01
+              if [ ''${#all_days[@]} -gt 0 ]; then
+                max_day=$(printf '%s\n' "''${all_days[@]}" | sort -n | tail -1)
+                next_day=$(printf "%02d" $((10#$max_day + 1)))
+              fi
+              
+              # Show form with prefilled day
+              ${gum}/bin/gum style --foreground 212 "Initializing new day"
+              echo ""
+              
+              day=$(${gum}/bin/gum input --placeholder "Day number" --value "$next_day" --prompt "Day: ")
+              
+              # Validate day is a number
+              if ! [[ "$day" =~ ^[0-9]+$ ]]; then
+                ${gum}/bin/gum style --foreground 196 "Invalid day number!"
+                exit 1
+              fi
+              
+              # Format with leading zero
+              day=$(printf "%02d" $((10#$day)))
+              
+              # Check if day already exists
+              if [ -d "ts/$day" ] || [ -d "nix/$day" ] || [ -d "shared/$day" ]; then
+                ${gum}/bin/gum style --foreground 196 "Day $day already exists!"
+                exit 1
+              fi
+              
+              # Create directories
+              mkdir -p "ts/$day"
+              mkdir -p "nix/$day"
+              mkdir -p "shared/$day"
+              
+              # Fetch input from adventofcode.com
+              ${gum}/bin/gum style --foreground 212 "Fetching input from adventofcode.com..."
+              
+              # Check for session cookie
+              session_cookie=""
+              if [ -f ".aoc-session" ]; then
+                session_cookie=$(cat .aoc-session)
+              else
+                ${gum}/bin/gum style --foreground 196 "No .aoc-session file found!"
+                ${gum}/bin/gum style "Create .aoc-session with your session cookie from adventofcode.com"
+                exit 1
+              fi
+              
+              # Fetch input
+              day_num=$((10#$day))
+              ${pkgs.curl}/bin/curl -s -b "session=$session_cookie" \
+                "https://adventofcode.com/2025/day/$day_num/input" \
+                -o "shared/$day/input.txt"
+              
+              if [ $? -ne 0 ] || [ ! -s "shared/$day/input.txt" ]; then
+                ${gum}/bin/gum style --foreground 196 "Failed to fetch input!"
+                rm -rf "ts/$day" "nix/$day" "shared/$day"
+                exit 1
+              fi
+              
+              # Create TypeScript template
+              cat > "ts/$day/index.ts" << EOF
+const file = await Bun.file("../../shared/$day/input.txt").text();
+
+(() => {
+  // Part 1
+  console.log("part 1:", 0);
+})();
+
+(() => {
+  // Part 2
+  console.log("part 2:", 0);
+})();
+EOF
+              
+              # Create Nix template
+              cat > "nix/$day/solution.nix" << EOF
+let
+  input = builtins.readFile ../../shared/$day/input.txt;
+  lines = builtins.filter (s: builtins.isString s && s != "") (builtins.split "\n" input);
+  
+  part1 = 0;
+  part2 = 0;
+
+in {
+  inherit part1 part2;
+}
+EOF
+              
+              ${gum}/bin/gum style --foreground 212 "✓ Day $day initialized!"
+              ${gum}/bin/gum style "  • ts/$day/index.ts"
+              ${gum}/bin/gum style "  • nix/$day/solution.nix"
+              ${gum}/bin/gum style "  • shared/$day/input.txt"
               ;;
               
             "Exit")
