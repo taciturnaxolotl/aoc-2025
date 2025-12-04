@@ -87,27 +87,34 @@ const html = `<!DOCTYPE html>
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>AOC 2025 Day 4 - Part 2 Visualization</title>
+	<title>AOC 2025 Day 4 - Paper Removal Visualization</title>
 	<style>
-		* {
-			margin: 0;
-			padding: 0;
-			box-sizing: border-box;
-		}
 		body {
-			font-family: 'Courier New', monospace;
-			background: #0f0f23;
-			color: #cccccc;
+			background: #1e1e2e;
+			color: #cdd6f4;
+			font-family: "Source Code Pro", monospace;
+			font-size: 14pt;
+			font-weight: 300;
 			padding: 20px;
 			display: flex;
 			flex-direction: column;
 			align-items: center;
 			min-height: 100vh;
 		}
+		a {
+			text-decoration: none;
+			color: #a6e3a1;
+			outline: 0;
+		}
+		a:hover, a:focus {
+			background-color: #181825 !important;
+		}
 		h1 {
-			color: #00cc00;
+			color: #a6e3a1;
+			text-shadow: 0 0 2px #a6e3a1, 0 0 5px #a6e3a1;
 			margin-bottom: 10px;
-			font-size: 24px;
+			font-size: 1em;
+			font-weight: normal;
 		}
 		.controls {
 			margin: 20px 0;
@@ -118,30 +125,29 @@ const html = `<!DOCTYPE html>
 			justify-content: center;
 		}
 		button {
-			background: #10101a;
-			color: #00cc00;
-			border: 1px solid #00cc00;
+			background: #11111b;
+			color: #a6e3a1;
+			border: 1px solid #313244;
 			padding: 8px 16px;
 			cursor: pointer;
 			font-family: inherit;
 			font-size: 14px;
 		}
 		button:hover {
-			background: #00cc00;
-			color: #0f0f23;
+			background: #181825;
 		}
 		button:disabled {
 			opacity: 0.5;
 			cursor: not-allowed;
 		}
 		.info {
-			color: #ffff66;
+			color: #f9e2af;
 			font-size: 16px;
 		}
 		.grid-container {
-			background: #10101a;
+			background: #11111b;
 			padding: 10px;
-			border: 2px solid #333;
+			border: 2px solid #313244;
 			border-radius: 4px;
 			flex: 1;
 			display: flex;
@@ -157,15 +163,21 @@ const html = `<!DOCTYPE html>
 			image-rendering: pixelated;
 		}
 		.cell {
-			background: #1a1a2e;
+			background: #181825;
 		}
 		.cell.paper {
-			background: #00cc00;
+			background: #a6e3a1;
 		}
 		.stats {
 			margin-top: 20px;
-			color: #888;
+			color: #a6adc8;
 			text-align: center;
+		}
+		.footer {
+			margin-top: 20px;
+			color: #a6adc8;
+			text-align: center;
+			font-size: 12px;
 		}
 	</style>
 </head>
@@ -191,6 +203,10 @@ const html = `<!DOCTYPE html>
 		Grid size: ${paperMap.length} × ${paperMap[0].length}
 		| Total iterations: ${stages.length - 1}
 		| Final answer: ${stages.slice(1).reduce((sum, s) => sum + s.accessible, 0)}
+	</div>
+	
+	<div class="footer">
+		<a href="../index.html">[Return to Index]</a>
 	</div>
 
 	<script>
