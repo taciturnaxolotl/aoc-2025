@@ -1,6 +1,6 @@
 # Advent of Code 2025 - Kieran's way
 
-![made with vhs](https://vhs.charm.sh/vhs-4Iru9nKzVVROVumbtUEW20.gif)
+![visualization website](https://hc-cdn.hel1.your-objectstorage.com/s/v3/1f4708965f9c2d71585ec79210a838aef44acb60_screenshot_2025-12-04_at_22.50.53.png)
 
 This contains my solutions to advent of code 2025 in mostly `ts` or `nix` depending on how lazy I'm feeling that day.
 
