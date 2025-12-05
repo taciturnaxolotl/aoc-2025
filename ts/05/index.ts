@@ -66,6 +66,13 @@ const parsedIngredients = ingredients
 })();
 
 (() => {
+	// we just need to get the distance each range covers
+	let totalFreshIds = 0;
+
+	mergedRanges.forEach((range) => {
+		totalFreshIds += range.end - range.start + 1;
+	});
+
 	// Part 2
-	console.log("part 2:", 0);
+	console.log("part 2:", totalFreshIds);
 })();
