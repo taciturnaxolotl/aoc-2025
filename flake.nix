@@ -30,6 +30,116 @@
         runner = pkgs.writeShellScriptBin "aoc" ''
           set -e
           
+          # Parse flags
+          day_flag=""
+          lang_flag=""
+          action_flag=""
+          
+          while [[ $# -gt 0 ]]; do
+            case $1 in
+              --day|-d)
+                day_flag="$2"
+                action_flag="run"
+                shift 2
+                ;;
+              --lang|-l)
+                lang_flag="$2"
+                shift 2
+                ;;
+              --all|-a)
+                action_flag="all"
+                shift
+                ;;
+              --init|-i)
+                action_flag="init"
+                shift
+                ;;
+              *)
+                echo "Unknown option: $1"
+                echo "Usage: aoc [--day DAY] [--lang ts|nix] [--all] [--init]"
+                exit 1
+                ;;
+            esac
+          done
+          
+          # If running with flags, skip interactive mode
+          if [ -n "$day_flag" ]; then
+            # Format day with leading zero
+            day=$(printf "%02d" $((10#$day_flag)))
+            
+            # Determine which languages to run
+            run_ts=false
+            run_nix=false
+            
+            if [ -z "$lang_flag" ] || [ "$lang_flag" = "both" ]; then
+              [ -f "ts/$day/index.ts" ] && run_ts=true
+              [ -f "nix/$day/solution.nix" ] && run_nix=true
+            elif [ "$lang_flag" = "ts" ] || [ "$lang_flag" = "typescript" ]; then
+              [ -f "ts/$day/index.ts" ] && run_ts=true
+            elif [ "$lang_flag" = "nix" ]; then
+              [ -f "nix/$day/solution.nix" ] && run_nix=true
+            else
+              echo "Unknown language: $lang_flag (use ts or nix)"
+              exit 1
+            fi
+            
+            if [ "$run_ts" = false ] && [ "$run_nix" = false ]; then
+              echo "No solutions found for day $day"
+              exit 1
+            fi
+            
+            ${gum}/bin/gum style --border rounded --border-foreground 212 --padding "0 1" "Day $day"
+            echo ""
+            
+            if [ "$run_ts" = true ]; then
+              ${gum}/bin/gum style --foreground 212 "TypeScript:"
+              (cd ts/$day && ${pkgs.bun}/bin/bun run index.ts)
+              echo ""
+            fi
+            
+            if [ "$run_nix" = true ]; then
+              ${gum}/bin/gum style --foreground 212 "Nix:"
+              result=$(${pkgs.nix}/bin/nix-instantiate --eval --strict --json nix/$day/solution.nix)
+              echo "$result" | ${pkgs.jq}/bin/jq -r 'to_entries | .[] | "\(.key): \(.value)"'
+            fi
+            
+            exit 0
+          fi
+          
+          # If --all flag, run all solutions
+          if [ "$action_flag" = "all" ]; then
+            all_days=()
+            for dir in ts/* nix/*; do
+              if [ -d "$dir" ]; then
+                day=$(basename "$dir")
+                if [[ ! " ''${all_days[@]} " =~ " ''${day} " ]]; then
+                  all_days+=("$day")
+                fi
+              fi
+            done
+            
+            for daynum in $(printf '%s\n' "''${all_days[@]}" | sort); do
+              ${gum}/bin/gum style --border rounded --border-foreground 212 --padding "0 1" "Day $daynum"
+              echo ""
+              
+              if [ -f "ts/$daynum/index.ts" ]; then
+                ${gum}/bin/gum style --foreground 212 "TypeScript:"
+                (cd ts/$daynum && ${pkgs.bun}/bin/bun run index.ts)
+                echo ""
+              fi
+              
+              if [ -f "nix/$daynum/solution.nix" ]; then
+                ${gum}/bin/gum style --foreground 212 "Nix:"
+                result=$(${pkgs.nix}/bin/nix-instantiate --eval --strict --json nix/$daynum/solution.nix)
+                echo "$result" | ${pkgs.jq}/bin/jq -r 'to_entries | .[] | "\(.key): \(.value)"'
+                echo ""
+              fi
+            done
+            
+            exit 0
+          fi
+          
+          # Interactive mode
           ${gum}/bin/gum style \
             --border double \
             --border-foreground 212 \
@@ -38,7 +148,11 @@
             "$(${gum}/bin/gum style --foreground 212 '🎄 Advent of Code 2025 🎄')"
           
           # Choose action
-          action=$(${gum}/bin/gum choose "Run specific day" "Run all solutions" "Init new day" "Exit")
+          if [ "$action_flag" = "init" ]; then
+            action="Init new day"
+          else
+            action=$(${gum}/bin/gum choose "Run specific day" "Run all solutions" "Init new day" "Exit")
+          fi
           
           case "$action" in
             "Run specific day")
