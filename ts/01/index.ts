@@ -16,7 +16,7 @@ const file = await Bun.file("../../shared/01/input.txt").text();
 		if (dial === 0) count++;
 	});
 
-	console.log(`part 1: ${count}`);
+	console.log("part 1:", count);
 })();
 
 (() => {
@@ -49,5 +49,5 @@ const file = await Bun.file("../../shared/01/input.txt").text();
 		dial = (100 + dial) % 100;
 	});
 
-	console.log(`part 2: ${count}`);
+	console.log("part 2:", count);
 })();
