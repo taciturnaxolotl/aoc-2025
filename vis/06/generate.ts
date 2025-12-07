@@ -132,6 +132,36 @@ const html = `<!DOCTYPE html>
 			opacity: 0.5;
 			cursor: not-allowed;
 		}
+		.speed-control {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			font-size: 13px;
+			color: #a6adc8;
+		}
+		.speed-control input[type="range"] {
+			width: 120px;
+			height: 6px;
+			background: #313244;
+			outline: none;
+			-webkit-appearance: none;
+		}
+		.speed-control input[type="range"]::-webkit-slider-thumb {
+			-webkit-appearance: none;
+			appearance: none;
+			width: 14px;
+			height: 14px;
+			background: #a6e3a1;
+			cursor: pointer;
+			border: 1px solid #313244;
+		}
+		.speed-control input[type="range"]::-moz-range-thumb {
+			width: 14px;
+			height: 14px;
+			background: #a6e3a1;
+			cursor: pointer;
+			border: 1px solid #313244;
+		}
 		.info {
 			color: #f9e2af;
 			font-size: 14px;
@@ -259,10 +289,15 @@ const html = `<!DOCTYPE html>
 		<button id="play">▶ Play</button>
 		<button id="next">Next →</button>
 		<button id="reset">↺ Reset</button>
+		<div class="speed-control">
+			<label for="speed">Speed:</label>
+			<input type="range" id="speed" min="1" max="25" value="5" step="1">
+			<span id="speedValue">5x</span>
+		</div>
 	</div>
 
 	<div class="info" id="infoBar">
-		Group: <span id="groupNum">1</span> / <span id="totalGroups">${Math.ceil(problemsArray.length / 10)}</span>
+		Group: <span id="groupNum">1</span> / <span id="totalGroups">100</span>
 		| Grand Total: <span id="grandTotal">0</span>
 	</div>
 
@@ -280,14 +315,42 @@ const html = `<!DOCTYPE html>
 
 	<script>
 		const problems = ${JSON.stringify(problemsArray)};
-		const GROUP_SIZE = 10;
-		const totalGroups = Math.ceil(problems.length / GROUP_SIZE);
+		
+		// Calculate group size based on how many cards fit in a row
+		function calculateGroupSize() {
+			const containerWidth = window.innerWidth * 0.95; // 95vw max
+			const cardMinWidth = 150; // minmax(150px, 1fr)
+			const gap = 15;
+			const containerPadding = 40; // 20px on each side
+			
+			const availableWidth = containerWidth - containerPadding;
+			const cardsPerRow = Math.floor((availableWidth + gap) / (cardMinWidth + gap));
+			
+			// Calculate rows that fit on screen (approximate)
+			const viewportHeight = window.innerHeight;
+			const headerHeight = 300; // Approximate space for header, controls, info
+			const availableHeight = viewportHeight - headerHeight;
+			const cardHeight = 150; // Approximate card height
+			const rowsPerScreen = Math.max(1, Math.floor((availableHeight + gap) / (cardHeight + gap)));
+			
+			return Math.max(cardsPerRow, cardsPerRow * rowsPerScreen);
+		}
+		
+		let GROUP_SIZE = calculateGroupSize();
+		let totalGroups = Math.ceil(problems.length / GROUP_SIZE);
 		
 		let currentGroup = 0;
 		let isPart2 = false;
 		let isPlaying = false;
 		let shouldStop = false;
 		let runningTotal = 0;
+		let speed = 5;
+		
+		// Step state for fine-grained navigation
+		let currentProblemIdx = 0; // Which problem in the group (0-9)
+		let currentStepIdx = 0;    // Which number/column within that problem
+		let problemAccumulators = []; // Track accumulator for each problem
+		let problemData = []; // Calculated data for each problem in group
 
 		const groupNumEl = document.getElementById('groupNum');
 		const totalGroupsEl = document.getElementById('totalGroups');
@@ -301,6 +364,8 @@ const html = `<!DOCTYPE html>
 		const resetBtn = document.getElementById('reset');
 		const problemContainer = document.getElementById('problemContainer');
 		const calculation = document.getElementById('calculation');
+		const speedSlider = document.getElementById('speed');
+		const speedValue = document.getElementById('speedValue');
 
 		function updateModeLabels() {
 			part1Label.classList.toggle('active', !isPart2);
@@ -349,6 +414,12 @@ const html = `<!DOCTYPE html>
 			problemContainer.innerHTML = '';
 			calculation.innerHTML = '<span class="nums">Group Total: <span class="result">0</span></span>';
 			
+			// Reset step state
+			currentProblemIdx = 0;
+			currentStepIdx = 0;
+			problemAccumulators = [];
+			problemData = [];
+			
 			groupProblems.forEach((problem, i) => {
 				const item = document.createElement('div');
 				item.className = 'problem-item';
@@ -357,6 +428,11 @@ const html = `<!DOCTYPE html>
 				const localProblem = [...problem];
 				const operator = localProblem.pop()?.trim();
 				const maxWidth = localProblem.reduce((m, s) => Math.max(m, s.length), 0);
+
+				// Calculate and store problem data
+				const data = calculateProblemData(problem);
+				problemData.push(data);
+				problemAccumulators.push(operator === '*' ? 1 : 0);
 
 				let gridHtml = '<div class="problem-grid" id="grid-' + i + '">';
 				
@@ -389,134 +465,230 @@ const html = `<!DOCTYPE html>
 
 			groupNumEl.textContent = currentGroup + 1;
 			totalGroupsEl.textContent = totalGroups;
-			prevBtn.disabled = currentGroup === 0 || isPlaying;
-			nextBtn.disabled = currentGroup === totalGroups - 1 || isPlaying;
+			updateButtons();
 		}
 
-		async function animateProblem(problemIdx, problemData, problem) {
-			const { nums, operator } = problemData;
+		function updateButtons() {
+			const atStart = currentGroup === 0 && currentProblemIdx === 0 && currentStepIdx === 0;
+			const atEnd = currentGroup === totalGroups - 1 && 
+			              currentProblemIdx === problemData.length - 1 && 
+			              currentStepIdx === problemData[currentProblemIdx]?.nums.length;
+			
+			prevBtn.disabled = isPlaying || atStart;
+			nextBtn.disabled = isPlaying || atEnd;
+		}
+
+		function performStep(problemIdx, stepIdx) {
+			const data = problemData[problemIdx];
+			const { nums, operator } = data;
 			const grid = document.getElementById(\`grid-\${problemIdx}\`);
 			const acc = document.getElementById(\`acc-\${problemIdx}\`);
+			
+			if (!grid || !acc || stepIdx >= nums.length) return;
 
-			let accumulator = operator === '*' ? 1 : 0;
-
+			const startIdx = currentGroup * GROUP_SIZE;
+			const problem = problems[startIdx + problemIdx];
+			
 			if (isPart2) {
 				// Part 2: Highlight columns
 				const localProblem = [...problem];
 				localProblem.pop(); // Remove operator
 				const maxWidth = localProblem.reduce((m, s) => Math.max(m, s.length), 0);
-
-				for (let i = 0; i < nums.length; i++) {
-					// Column index: rightmost is maxWidth-1, then maxWidth-2, etc.
-					const colIdx = maxWidth - 2 - i;
-					
-					// Highlight all digits in this column
-					const digitsInCol = grid.querySelectorAll(\`[data-col="\${colIdx}"]\`);
-					digitsInCol.forEach(d => d.classList.add('highlight'));
-					
-					await new Promise(resolve => setTimeout(resolve, 400));
-
-					// Perform operation
-					if (operator === '*') {
-						accumulator *= nums[i];
-					} else {
-						accumulator += nums[i];
-					}
-					acc.textContent = accumulator.toLocaleString();
-
-					// Fade out the column
-					digitsInCol.forEach(d => {
-						d.classList.remove('highlight');
-						d.classList.add('fade');
-					});
-
-					await new Promise(resolve => setTimeout(resolve, 200));
-				}
+				const colIdx = maxWidth - 2 - stepIdx;
+				
+				// Highlight all digits in this column
+				const digitsInCol = grid.querySelectorAll(\`[data-col="\${colIdx}"]\`);
+				digitsInCol.forEach(d => d.classList.add('highlight'));
 			} else {
 				// Part 1: Highlight rows
 				const numberElements = grid.querySelectorAll('.number');
-
-				for (let i = 0; i < nums.length; i++) {
-					// Highlight current number
-					numberElements[i].classList.add('highlight');
-					
-					await new Promise(resolve => setTimeout(resolve, 400));
-
-					// Perform operation
-					if (operator === '*') {
-						accumulator *= nums[i];
-					} else {
-						accumulator += nums[i];
-					}
-					acc.textContent = accumulator.toLocaleString();
-
-					// Fade out the number
-					numberElements[i].classList.remove('highlight');
-					numberElements[i].classList.add('fade');
-
-					await new Promise(resolve => setTimeout(resolve, 200));
+				if (numberElements[stepIdx]) {
+					numberElements[stepIdx].classList.add('highlight');
 				}
 			}
 
-			return accumulator;
+			// Perform operation
+			if (operator === '*') {
+				problemAccumulators[problemIdx] *= nums[stepIdx];
+			} else {
+				problemAccumulators[problemIdx] += nums[stepIdx];
+			}
+			acc.textContent = problemAccumulators[problemIdx].toLocaleString();
 		}
 
-		async function animateGroup() {
+		function fadeStep(problemIdx, stepIdx) {
+			const grid = document.getElementById(\`grid-\${problemIdx}\`);
+			if (!grid) return;
+
+			const startIdx = currentGroup * GROUP_SIZE;
+			const problem = problems[startIdx + problemIdx];
+			
+			if (isPart2) {
+				const localProblem = [...problem];
+				localProblem.pop();
+				const maxWidth = localProblem.reduce((m, s) => Math.max(m, s.length), 0);
+				const colIdx = maxWidth - 2 - stepIdx;
+				
+				const digitsInCol = grid.querySelectorAll(\`[data-col="\${colIdx}"]\`);
+				digitsInCol.forEach(d => {
+					d.classList.remove('highlight');
+					d.classList.add('fade');
+				});
+			} else {
+				const numberElements = grid.querySelectorAll('.number');
+				if (numberElements[stepIdx]) {
+					numberElements[stepIdx].classList.remove('highlight');
+					numberElements[stepIdx].classList.add('fade');
+				}
+			}
+		}
+
+		function stepForward(fromPlayback = false) {
+			if (isPlaying && !fromPlayback) return;
+			
+			// Perform current step
+			performStep(currentProblemIdx, currentStepIdx);
+			
+			// Advance step
+			currentStepIdx++;
+			
+			// Check if we've finished this problem
+			if (currentStepIdx >= problemData[currentProblemIdx].nums.length) {
+				// Fade the last step
+				fadeStep(currentProblemIdx, currentStepIdx - 1);
+				
+				// Update grand total
+				runningTotal += problemAccumulators[currentProblemIdx];
+				grandTotalEl.textContent = runningTotal.toLocaleString();
+				
+				// Move to next problem
+				currentProblemIdx++;
+				currentStepIdx = 0;
+				
+				// Check if we've finished the group
+				if (currentProblemIdx >= problemData.length) {
+					// Update group total
+					const groupTotal = problemAccumulators.reduce((sum, val) => sum + val, 0);
+					calculation.innerHTML = \`<span class="nums">Group Total: <span class="result">\${groupTotal.toLocaleString()}</span></span>\`;
+					
+					// Move to next group
+					if (currentGroup < totalGroups - 1) {
+						currentGroup++;
+						renderGroup();
+					}
+				}
+			} else {
+				// Fade previous step
+				if (currentStepIdx > 0) {
+					fadeStep(currentProblemIdx, currentStepIdx - 1);
+				}
+			}
+			
+			if (!fromPlayback) updateButtons();
+		}
+
+		function stepBackward() {
+			if (isPlaying) return;
+			
+			// Move back one step
+			currentStepIdx--;
+			
+			// If we're before the start of this problem, go to previous problem
+			if (currentStepIdx < 0) {
+				currentProblemIdx--;
+				
+				// If we're before the start of the group, go to previous group
+				if (currentProblemIdx < 0) {
+					if (currentGroup > 0) {
+						currentGroup--;
+						renderGroup();
+						// Set to end of this group
+						currentProblemIdx = problemData.length - 1;
+						currentStepIdx = problemData[currentProblemIdx].nums.length - 1;
+					} else {
+						// Already at the very start
+						currentProblemIdx = 0;
+						currentStepIdx = 0;
+					}
+				} else {
+					// Go to end of previous problem
+					currentStepIdx = problemData[currentProblemIdx].nums.length - 1;
+					
+					// Revert the grand total
+					runningTotal -= problemAccumulators[currentProblemIdx + 1];
+					grandTotalEl.textContent = runningTotal.toLocaleString();
+				}
+			}
+			
+			// Clear current state and rebuild up to current step
+			renderGroupState();
+			updateButtons();
+		}
+
+		function renderGroupState() {
+			// Re-render the group with current state
 			const startIdx = currentGroup * GROUP_SIZE;
 			const endIdx = Math.min(startIdx + GROUP_SIZE, problems.length);
 			const groupProblems = problems.slice(startIdx, endIdx);
-
-			let groupTotal = 0;
-
-			// Animate all problems in parallel but update totals as each completes
-			const results = await Promise.all(
-				groupProblems.map(async (problem, i) => {
-					const data = calculateProblemData(problem);
-					const result = await animateProblem(i, data, problem);
-					
-					// Update totals cumulatively as each problem finishes
-					groupTotal += result;
-					runningTotal += result;
-					grandTotalEl.textContent = runningTotal.toLocaleString();
-					
-					return result;
-				})
-			);
-
-			// Show final group total
-			calculation.innerHTML = \`<span class="nums">Group Total: <span class="result">\${groupTotal.toLocaleString()}</span></span>\`;
+			
+			// Reset accumulators
+			for (let i = 0; i < problemAccumulators.length; i++) {
+				const data = problemData[i];
+				problemAccumulators[i] = data.operator === '*' ? 1 : 0;
+				const acc = document.getElementById(\`acc-\${i}\`);
+				if (acc) acc.textContent = '';
+			}
+			
+			// Clear all highlights and fades
+			document.querySelectorAll('.highlight, .fade').forEach(el => {
+				el.classList.remove('highlight', 'fade');
+			});
+			
+			// Replay all steps up to current position
+			for (let p = 0; p <= currentProblemIdx; p++) {
+				const maxStep = p === currentProblemIdx ? currentStepIdx : problemData[p].nums.length;
+				for (let s = 0; s < maxStep; s++) {
+					performStep(p, s);
+					fadeStep(p, s);
+				}
+			}
 		}
 
 		async function playAll() {
 			isPlaying = true;
 			shouldStop = false;
 			playBtn.textContent = '⏸ Pause';
-			prevBtn.disabled = true;
-			nextBtn.disabled = true;
+			updateButtons();
 
-			for (let i = currentGroup; i < totalGroups; i++) {
-				if (shouldStop) break;
+			while (!shouldStop) {
+				// Check if we're at the end
+				const atEnd = currentGroup === totalGroups - 1 && 
+				              currentProblemIdx === problemData.length - 1 && 
+				              currentStepIdx >= problemData[currentProblemIdx].nums.length;
 				
-				currentGroup = i;
-				renderGroup();
-				await animateGroup();
+				if (atEnd) break;
 				
-				if (shouldStop) break;
-				await new Promise(resolve => setTimeout(resolve, 1000));
+				stepForward(true);
+				// Speed: 1 = 1000ms, 5 = 600ms, 10 = 200ms, 25 = 20ms
+				const delay = Math.max(20, 1050 - (speed * 50));
+				await new Promise(resolve => setTimeout(resolve, delay));
 			}
 
 			isPlaying = false;
+			shouldStop = false;
 			playBtn.textContent = '▶ Play';
-			prevBtn.disabled = currentGroup === 0;
-			nextBtn.disabled = currentGroup === totalGroups - 1;
+			updateButtons();
 		}
 
 		function stopPlaying() {
 			shouldStop = true;
+			isPlaying = false;
+			playBtn.textContent = '▶ Play';
+			updateButtons();
 		}
 
 		function resetAnimation() {
-			if (isPlaying) return;
+			if (isPlaying) stopPlaying();
 			currentGroup = 0;
 			runningTotal = 0;
 			grandTotalEl.textContent = '0';
@@ -540,17 +712,11 @@ const html = `<!DOCTYPE html>
 		});
 
 		prevBtn.addEventListener('click', () => {
-			if (!isPlaying && currentGroup > 0) {
-				currentGroup--;
-				renderGroup();
-			}
+			stepBackward();
 		});
 
 		nextBtn.addEventListener('click', () => {
-			if (!isPlaying && currentGroup < totalGroups - 1) {
-				currentGroup++;
-				renderGroup();
-			}
+			stepForward();
 		});
 
 		resetBtn.addEventListener('click', resetAnimation);
@@ -563,17 +729,38 @@ const html = `<!DOCTYPE html>
 			}
 		});
 
+		speedSlider.addEventListener('input', (e) => {
+			speed = parseInt(e.target.value);
+			speedValue.textContent = speed + 'x';
+		});
+
 		document.addEventListener('keydown', (e) => {
-			if (isPlaying) return;
 			if (e.key === 'ArrowLeft') prevBtn.click();
 			if (e.key === 'ArrowRight') nextBtn.click();
 			if (e.key === ' ') {
 				e.preventDefault();
 				playBtn.click();
 			}
-			if (e.key === 'r' || e.key === 'R') resetBtn.click();
+			if (e.key === 'r' || e.key === 'R') {
+				if (!isPlaying) resetBtn.click();
+			}
 			if (e.key === 't' || e.key === 'T') {
-				toggleMode();
+				if (!isPlaying) toggleMode();
+			}
+		});
+
+		// Handle window resize
+		window.addEventListener('resize', () => {
+			const newGroupSize = calculateGroupSize();
+			if (newGroupSize !== GROUP_SIZE && !isPlaying) {
+				GROUP_SIZE = newGroupSize;
+				totalGroups = Math.ceil(problems.length / GROUP_SIZE);
+				// Adjust current group to maintain position
+				const currentProblemGlobal = currentGroup * GROUP_SIZE + currentProblemIdx;
+				currentGroup = Math.floor(currentProblemGlobal / GROUP_SIZE);
+				currentProblemIdx = currentProblemGlobal % GROUP_SIZE;
+				totalGroupsEl.textContent = totalGroups;
+				renderGroup();
 			}
 		});
 
