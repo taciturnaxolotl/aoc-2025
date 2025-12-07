@@ -47,6 +47,11 @@ const dayInfo: Record<string, { title: string; description: string }> = {
 		description:
 			"Watch papers being removed layer by layer from a grid. Papers with fewer than 4 neighbors (including diagonals) are accessible and removed each iteration.",
 	},
+	"07": {
+		title: "Tachyon Beam Splitting",
+		description:
+			"Watch tachyon beams split as they travel through a manifold. Each splitter (^) stops a beam and creates two new beams extending left and right.",
+	},
 };
 
 const dayCards = days
@@ -147,6 +152,7 @@ const indexHtml = `<!DOCTYPE html>
 			margin-top: 3em;
 			color: #a6adc8;
 			text-align: center;
+			font-size: 12px;
 		}
 	</style>
 </head>

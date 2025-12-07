@@ -142,7 +142,44 @@ const html = `<!DOCTYPE html>
 		}
 		.info {
 			color: #f9e2af;
-			font-size: 16px;
+			font-size: 14px;
+			margin: 10px 0;
+		}
+		.speed-control {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+		}
+		.speed-control input[type="range"] {
+			-webkit-appearance: none;
+			appearance: none;
+			width: 120px;
+			height: 6px;
+			background: #313244;
+			outline: none;
+			border: 1px solid #313244;
+		}
+		.speed-control input[type="range"]::-webkit-slider-thumb {
+			-webkit-appearance: none;
+			appearance: none;
+			width: 16px;
+			height: 16px;
+			background: #a6e3a1;
+			cursor: pointer;
+			border: 1px solid #313244;
+		}
+		.speed-control input[type="range"]::-moz-range-thumb {
+			width: 16px;
+			height: 16px;
+			background: #a6e3a1;
+			cursor: pointer;
+			border: 1px solid #313244;
+		}
+		.speed-control input[type="range"]::-webkit-slider-thumb:hover {
+			background: #b4e7b9;
+		}
+		.speed-control input[type="range"]::-moz-range-thumb:hover {
+			background: #b4e7b9;
 		}
 		.grid-container {
 			background: #11111b;
@@ -172,6 +209,7 @@ const html = `<!DOCTYPE html>
 			margin-top: 20px;
 			color: #a6adc8;
 			text-align: center;
+			font-size: 13px;
 		}
 		.footer {
 			margin-top: 20px;
@@ -188,11 +226,16 @@ const html = `<!DOCTYPE html>
 		<button id="prev">← Previous</button>
 		<button id="play" data-playing="false">▶ Play</button>
 		<button id="next">Next →</button>
-		<span class="info">
-			Stage: <span id="stage">0</span> / <span id="total">${stages.length - 1}</span>
-			| Accessible: <span id="accessible">0</span>
-			| Total Removed: <span id="totalRemoved">0</span>
+		<span class="speed-control">
+			<label for="speed">Speed:</label>
+			<input type="range" id="speed" min="100" max="1000" value="500" step="50">
 		</span>
+	</div>
+
+	<div class="info">
+		Stage: <span id="stage">0</span> / <span id="total">${stages.length - 1}</span>
+		| Accessible: <span id="accessible">0</span>
+		| Total Removed: <span id="totalRemoved">0</span>
 	</div>
 
 	<div class="grid-container">
@@ -221,6 +264,7 @@ const html = `<!DOCTYPE html>
 		const prevBtn = document.getElementById('prev');
 		const nextBtn = document.getElementById('next');
 		const playBtn = document.getElementById('play');
+		const speedSlider = document.getElementById('speed');
 
 		function renderGrid() {
 			const stage = stages[currentStage];
@@ -304,6 +348,7 @@ const html = `<!DOCTYPE html>
 				playBtn.textContent = '▶ Play';
 			} else {
 				playBtn.textContent = '⏸ Pause';
+				const speed = 1100 - parseInt(speedSlider.value);
 				playInterval = setInterval(() => {
 					if (currentStage < stages.length - 1) {
 						goToStage(currentStage + 1);
@@ -312,7 +357,23 @@ const html = `<!DOCTYPE html>
 						playInterval = null;
 						playBtn.textContent = '▶ Play';
 					}
-				}, 500);
+				}, speed);
+			}
+		});
+
+		speedSlider.addEventListener('input', () => {
+			if (playInterval) {
+				clearInterval(playInterval);
+				const speed = 1100 - parseInt(speedSlider.value);
+				playInterval = setInterval(() => {
+					if (currentStage < stages.length - 1) {
+						goToStage(currentStage + 1);
+					} else {
+						clearInterval(playInterval);
+						playInterval = null;
+						playBtn.textContent = '▶ Play';
+					}
+				}, speed);
 			}
 		});
 
