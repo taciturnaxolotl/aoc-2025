@@ -47,6 +47,11 @@ const dayInfo: Record<string, { title: string; description: string }> = {
 		description:
 			"Watch papers being removed layer by layer from a grid. Papers with fewer than 4 neighbors (including diagonals) are accessible and removed each iteration.",
 	},
+	"06": {
+		title: "Cephalopod Math",
+		description:
+			"Learn to read numbers like a cephalopod! Part 1 reads numbers vertically down columns, Part 2 reads digits column-by-column from right to left.",
+	},
 	"07": {
 		title: "Tachyon Beam Splitting",
 		description:

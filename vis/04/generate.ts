@@ -87,7 +87,7 @@ const html = `<!DOCTYPE html>
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>AOC 2025 Day 4 - Paper Removal Visualization</title>
+	<title>AoC 2025 Day 4 - Paper Removal Visualization</title>
 	<style>
 		body {
 			background: #1e1e2e;
@@ -225,7 +225,7 @@ const html = `<!DOCTYPE html>
 	</style>
 </head>
 <body>
-	<h1>AOC 2025 Day 4 - Paper Removal Visualization</h1>
+	<h1>AoC 2025 Day 4 - Paper Removal Visualization</h1>
 	
 	<div class="controls">
 		<button id="prev">← Previous</button>

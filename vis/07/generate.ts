@@ -156,7 +156,7 @@ const html = `<!DOCTYPE html>
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>AOC 2025 Day 7 - Timeline Beam Splitting</title>
+	<title>AoC 2025 Day 7 - Timeline Beam Splitting</title>
 	<style>
 		* {
 			box-sizing: border-box;
@@ -372,7 +372,7 @@ const html = `<!DOCTYPE html>
 	</style>
 </head>
 <body>
-	<h1>AOC 2025 Day 7 - Timeline Beam Splitting</h1>
+	<h1>AoC 2025 Day 7 - Timeline Beam Splitting</h1>
 
 	<div class="mode-toggle">
 		<label id="part1Label">Part 1</label>
