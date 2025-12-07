@@ -201,9 +201,14 @@ const html = `<!DOCTYPE html>
 		}
 		.cell {
 			background: #181825;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			font-size: 14px;
 		}
 		.cell.paper {
 			background: #a6e3a1;
+			color: #1e1e2e;
 		}
 		.stats {
 			margin-top: 20px;
@@ -226,6 +231,7 @@ const html = `<!DOCTYPE html>
 		<button id="prev">← Previous</button>
 		<button id="play" data-playing="false">▶ Play</button>
 		<button id="next">Next →</button>
+		<button id="reset">↺ Reset</button>
 		<span class="speed-control">
 			<label for="speed">Speed:</label>
 			<input type="range" id="speed" min="100" max="1000" value="500" step="50">
@@ -264,6 +270,7 @@ const html = `<!DOCTYPE html>
 		const prevBtn = document.getElementById('prev');
 		const nextBtn = document.getElementById('next');
 		const playBtn = document.getElementById('play');
+		const resetBtn = document.getElementById('reset');
 		const speedSlider = document.getElementById('speed');
 
 		function renderGrid() {
@@ -287,10 +294,13 @@ const html = `<!DOCTYPE html>
 			for (let row = 0; row < numRows; row++) {
 				for (let col = 0; col < numCols; col++) {
 					const idx = row * numCols + col;
+					const cell = cells[idx];
 					if (stage.map[row][col]) {
-						cells[idx].classList.add('paper');
+						cell.classList.add('paper');
+						cell.textContent = '@';
 					} else {
-						cells[idx].classList.remove('paper');
+						cell.classList.remove('paper');
+						cell.textContent = '';
 					}
 				}
 			}
@@ -325,6 +335,7 @@ const html = `<!DOCTYPE html>
 			for (let i = 0; i < cells.length; i++) {
 				cells[i].style.width = cellSize + 'px';
 				cells[i].style.height = cellSize + 'px';
+				cells[i].style.fontSize = Math.max(10, cellSize * 0.5) + 'px';
 			}
 		}
 
@@ -333,13 +344,13 @@ const html = `<!DOCTYPE html>
 			renderGrid();
 		}
 
-		prevBtn.addEventListener('click', () => {
-			goToStage(currentStage - 1);
-		});
+		function resetAnimation() {
+			goToStage(0);
+		}
 
-		nextBtn.addEventListener('click', () => {
-			goToStage(currentStage + 1);
-		});
+		prevBtn.addEventListener('click', () => goToStage(currentStage - 1));
+		nextBtn.addEventListener('click', () => goToStage(currentStage + 1));
+		resetBtn.addEventListener('click', resetAnimation);
 
 		playBtn.addEventListener('click', () => {
 			if (playInterval) {
@@ -347,6 +358,9 @@ const html = `<!DOCTYPE html>
 				playInterval = null;
 				playBtn.textContent = '▶ Play';
 			} else {
+				if (currentStage === stages.length - 1) {
+					resetAnimation();
+				}
 				playBtn.textContent = '⏸ Pause';
 				const speed = 1100 - parseInt(speedSlider.value);
 				playInterval = setInterval(() => {
@@ -385,6 +399,7 @@ const html = `<!DOCTYPE html>
 				e.preventDefault();
 				playBtn.click();
 			}
+			if (e.key === 'r' || e.key === 'R') resetBtn.click();
 		});
 
 		// Rescale on window resize
