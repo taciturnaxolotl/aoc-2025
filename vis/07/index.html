@@ -18,7 +18,6 @@
 			display: flex;
 			flex-direction: column;
 			align-items: center;
-			min-height: 100vh;
 			margin: 0;
 		}
 		a {
@@ -95,13 +94,12 @@
 			padding: 10px;
 			border: 2px solid #313244;
 			border-radius: 4px;
-			flex: 1;
 			display: flex;
 			align-items: center;
 			justify-content: center;
 			width: 100%;
-			max-width: 95vw;
-			overflow: hidden;
+			max-width: 100%;
+			overflow: auto;
 		}
 		.grid {
 			display: grid;
@@ -114,8 +112,9 @@
 			align-items: center;
 			justify-content: center;
 			font-size: 14px;
-			transition: background 0.15s ease;
+			transition: background 0.1s ease;
 			position: relative;
+			color: #1e1e2e;
 		}
 		.cell.splitter {
 			background: #fab387;
@@ -128,19 +127,12 @@
 		}
 		.cell.beam {
 			background: #a6e3a1;
-			box-shadow: 0 0 8px #a6e3a1, 0 0 16px #a6e3a1;
-			animation: pulse 0.5s ease-in-out infinite alternate;
+			color: #1e1e2e;
+			font-weight: bold;
+			font-size: 10px;
 		}
 		.cell.beam-trail {
 			background: rgba(166, 227, 161, 0.25);
-		}
-		.cell .count {
-			font-size: 10px;
-			font-weight: bold;
-			color: #1e1e2e;
-		}
-		.cell.beam .count {
-			text-shadow: 0 0 2px #cdd6f4;
 		}
 		@keyframes pulse {
 			from { box-shadow: 0 0 8px #a6e3a1, 0 0 16px #a6e3a1; }
@@ -280,6 +272,8 @@
 		let playInterval = null;
 		let beamTrail = new Set();
 		let isPart2 = false;
+		let cellSize = 5;
+		let cellElements = [];
 
 		const gridEl = document.getElementById('grid');
 		const stepEl = document.getElementById('step');
@@ -318,11 +312,41 @@
 			totalEl.textContent = getStages().length - 1;
 		}
 
+		function initGrid() {
+			gridEl.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+			cellElements = new Array(ROWS * COLS);
+			
+			for (let r = 0; r < ROWS; r++) {
+				for (let c = 0; c < COLS; c++) {
+					const cell = document.createElement('div');
+					const char = grid[r][c];
+					const idx = r * COLS + c;
+					
+					cell.className = 'cell';
+					cell.dataset.row = r;
+					cell.dataset.col = c;
+					cell.dataset.char = char;
+					
+					// Set static content once
+					if (char === 'S') {
+						cell.classList.add('start');
+					} else if (char === '^') {
+						cell.classList.add('splitter');
+					}
+					
+					gridEl.appendChild(cell);
+					cellElements[idx] = cell;
+				}
+			}
+			
+			scaleGrid();
+		}
+
 		function renderGrid() {
 			const stages = getStages();
 			const stage = stages[currentStage];
 
-			let beamPositions = new Map(); // key -> count (for part 2) or 1 (for part 1)
+			let beamPositions = new Map();
 
 			if (isPart2) {
 				for (const [key, count] of Object.entries(stage.positions)) {
@@ -337,54 +361,62 @@
 				beamTrail.add(key);
 			}
 
-			if (gridEl.children.length === 0) {
-				gridEl.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
-				for (let r = 0; r < ROWS; r++) {
-					for (let c = 0; c < COLS; c++) {
-						const cell = document.createElement('div');
-						cell.className = 'cell';
-						cell.dataset.row = r;
-						cell.dataset.col = c;
-						gridEl.appendChild(cell);
-					}
+			// Only update changed cells
+			const prevBeamKeys = new Set();
+			if (currentStage > 0) {
+				const prevStage = stages[currentStage - 1];
+				if (isPart2) {
+					Object.keys(prevStage.positions).forEach(k => prevBeamKeys.add(k));
+				} else {
+					prevStage.beams.forEach(([r, c]) => prevBeamKeys.add(r + ',' + c));
 				}
 			}
 
-			const cells = gridEl.children;
-			for (let r = 0; r < ROWS; r++) {
-				for (let c = 0; c < COLS; c++) {
-					const idx = r * COLS + c;
-					const cell = cells[idx];
-					const char = grid[r][c];
-					const key = r + ',' + c;
+			// Find cells that need updating
+			const toUpdate = new Set();
+			beamPositions.forEach((_, key) => toUpdate.add(key));
+			prevBeamKeys.forEach(key => toUpdate.add(key));
 
-					cell.className = 'cell';
-					cell.textContent = '';
+			// Update only changed cells
+			for (const key of toUpdate) {
+				const [r, c] = key.split(',').map(Number);
+				const idx = r * COLS + c;
+				const cell = cellElements[idx];
+				const char = cell.dataset.char;
+				const count = beamPositions.get(key);
 
-					const count = beamPositions.get(key);
-					if (count !== undefined) {
-						cell.classList.add('beam');
-						if (isPart2 && count > 1) {
-							const countSpan = document.createElement('span');
-							countSpan.className = 'count';
-							countSpan.textContent = count > 999 ? '999+' : count;
-							cell.appendChild(countSpan);
+				// Reset dynamic classes
+				cell.classList.remove('beam', 'beam-trail');
+
+				if (count !== undefined) {
+					cell.classList.add('beam');
+					
+					// For Part 2, adjust opacity/intensity based on timeline count
+					if (isPart2 && count > 1) {
+						// Logarithmic scale for better visual range
+						const intensity = Math.min(1, Math.log10(count + 1) / 4);
+						cell.style.opacity = 0.3 + (intensity * 0.7);
+						
+						// Only show small counts in upper portion to reduce clutter
+						if (count <= 99 && r < ROWS * 0.6) {
+							cell.textContent = count;
+						} else {
+							cell.textContent = '';
 						}
-					} else if (beamTrail.has(key) && currentStage > 0) {
-						cell.classList.add('beam-trail');
+					} else {
+						cell.style.opacity = '1';
+						cell.textContent = '';
 					}
-
-					if (char === 'S') {
-						cell.classList.add('start');
-						if (!count) cell.textContent = 'S';
-					} else if (char === '^') {
-						cell.classList.add('splitter');
-						if (!count) cell.textContent = '^';
-					}
+				} else if (beamTrail.has(key) && currentStage > 0) {
+					cell.classList.add('beam-trail');
+					cell.style.opacity = '1';
+					cell.textContent = '';
+				} else {
+					// Show static char
+					cell.style.opacity = '1';
+					cell.textContent = (char === 'S' || char === '^') ? char : '';
 				}
 			}
-
-			scaleGrid();
 
 			stepEl.textContent = currentStage;
 
@@ -402,19 +434,20 @@
 
 		function scaleGrid() {
 			const container = document.querySelector('.grid-container');
-			const containerWidth = container.clientWidth;
-			const containerHeight = container.clientHeight;
+			const containerWidth = container.clientWidth * 0.9; // Account for padding (10px + 10px) + border (2px + 2px)
 
-			const cellWidth = Math.floor((containerWidth - COLS) / COLS);
-			const cellHeight = Math.floor((containerHeight - ROWS) / ROWS);
+			// Calculate cell size based on width to fill the container
+			const cellWidth = Math.floor(containerWidth / COLS);
 
-			const cellSize = Math.max(1, Math.min(cellWidth, cellHeight, 20));
+			// Set a reasonable max size for readability
+			cellSize = Math.max(2, Math.min(cellWidth, 15));
 
-			const cells = gridEl.children;
-			for (let i = 0; i < cells.length; i++) {
-				cells[i].style.width = cellSize + 'px';
-				cells[i].style.height = cellSize + 'px';
-				cells[i].style.fontSize = Math.max(10, cellSize * 0.5) + 'px';
+			const fontSize = Math.max(8, Math.min(cellSize * 0.7, 12));
+			
+			for (let i = 0; i < cellElements.length; i++) {
+				cellElements[i].style.width = cellSize + 'px';
+				cellElements[i].style.height = cellSize + 'px';
+				cellElements[i].style.fontSize = fontSize + 'px';
 			}
 		}
 
@@ -441,6 +474,15 @@
 		}
 
 		function toggleMode() {
+			if (playInterval) {
+				playInterval = null;
+				if (animationFrameId) {
+					cancelAnimationFrame(animationFrameId);
+					animationFrameId = null;
+				}
+				playBtn.textContent = '▶ Play';
+			}
+			
 			isPart2 = !isPart2;
 			updateModeLabels();
 
@@ -460,6 +502,15 @@
 				}
 			}
 
+			// Full re-render on mode change - reset all cells
+			for (let i = 0; i < cellElements.length; i++) {
+				const cell = cellElements[i];
+				const char = cell.dataset.char;
+				cell.classList.remove('beam', 'beam-trail');
+				cell.style.opacity = '1';
+				cell.textContent = (char === 'S' || char === '^') ? char : '';
+			}
+			
 			renderGrid();
 		}
 
@@ -475,10 +526,38 @@
 		nextBtn.addEventListener('click', () => goToStage(currentStage + 1));
 		resetBtn.addEventListener('click', resetAnimation);
 
+		let animationFrameId = null;
+		let lastFrameTime = 0;
+
+		function animate(timestamp) {
+			const stages = getStages();
+			const speed = 1100 - parseInt(speedSlider.value);
+			
+			if (timestamp - lastFrameTime >= speed) {
+				if (currentStage < stages.length - 1) {
+					goToStage(currentStage + 1);
+					lastFrameTime = timestamp;
+				} else {
+					// Animation complete
+					playInterval = null;
+					playBtn.textContent = '▶ Play';
+					animationFrameId = null;
+					return;
+				}
+			}
+			
+			if (playInterval) {
+				animationFrameId = requestAnimationFrame(animate);
+			}
+		}
+
 		playBtn.addEventListener('click', () => {
 			if (playInterval) {
-				clearInterval(playInterval);
 				playInterval = null;
+				if (animationFrameId) {
+					cancelAnimationFrame(animationFrameId);
+					animationFrameId = null;
+				}
 				playBtn.textContent = '▶ Play';
 			} else {
 				const stages = getStages();
@@ -486,35 +565,14 @@
 					resetAnimation();
 				}
 				playBtn.textContent = '⏸ Pause';
-				const speed = 1100 - parseInt(speedSlider.value);
-				playInterval = setInterval(() => {
-					const stages = getStages();
-					if (currentStage < stages.length - 1) {
-						goToStage(currentStage + 1);
-					} else {
-						clearInterval(playInterval);
-						playInterval = null;
-						playBtn.textContent = '▶ Play';
-					}
-				}, speed);
+				playInterval = true;
+				lastFrameTime = 0;
+				animationFrameId = requestAnimationFrame(animate);
 			}
 		});
 
 		speedSlider.addEventListener('input', () => {
-			if (playInterval) {
-				clearInterval(playInterval);
-				const speed = 1100 - parseInt(speedSlider.value);
-				playInterval = setInterval(() => {
-					const stages = getStages();
-					if (currentStage < stages.length - 1) {
-						goToStage(currentStage + 1);
-					} else {
-						clearInterval(playInterval);
-						playInterval = null;
-						playBtn.textContent = '▶ Play';
-					}
-				}, speed);
-			}
+			// Speed change is handled in the animate loop
 		});
 
 		document.addEventListener('keydown', (e) => {
@@ -530,8 +588,14 @@
 			}
 		});
 
-		window.addEventListener('resize', scaleGrid);
+		let resizeTimeout;
+		window.addEventListener('resize', () => {
+			clearTimeout(resizeTimeout);
+			resizeTimeout = setTimeout(scaleGrid, 100);
+		});
+		
 		updateModeLabels();
+		initGrid();
 		renderGrid();
 	</script>
 </body>
