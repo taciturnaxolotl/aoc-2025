@@ -57,6 +57,11 @@ const dayInfo: Record<string, { title: string; description: string }> = {
 		description:
 			"Watch tachyon beams split as they travel through a manifold. Each splitter (^) stops a beam and creates two new beams extending left and right.",
 	},
+	"08": {
+		title: "Playground Junction Boxes",
+		description:
+			"3D visualization of junction boxes being connected by their shortest distances. Watch circuits form as connections merge isolated boxes into larger groups.",
+	},
 };
 
 const dayCards = days
