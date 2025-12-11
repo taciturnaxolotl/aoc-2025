@@ -62,11 +62,104 @@
 			max-width: 800px;
 			border-radius: 4px;
 		}
+		.timeline-container {
+			background: rgba(17, 17, 27, 0.9);
+			border: 1px solid #313244;
+			padding: 20px;
+			margin: 10px auto;
+			max-width: 800px;
+			border-radius: 4px;
+		}
+		.timeline-label {
+			color: #a6adc8;
+			font-size: 12px;
+			margin-bottom: 10px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+		.timeline-markers {
+			position: relative;
+			margin-top: 8px;
+			font-size: 11px;
+			color: #6c7086;
+			height: 30px;
+		}
+		.timeline-marker {
+			position: absolute;
+			text-align: center;
+			transform: translateX(-50%);
+			white-space: nowrap;
+		}
+		.timeline-marker.start {
+			left: 0%;
+			transform: translateX(0);
+		}
+		.timeline-marker.end {
+			right: 0%;
+			transform: translateX(0);
+			text-align: right;
+		}
+		.timeline-marker.highlight {
+			color: #a6e3a1;
+			font-weight: bold;
+		}
+		.timeline-slider {
+			width: 100% !important;
+			-webkit-appearance: none;
+			appearance: none;
+			height: 12px;
+			background: linear-gradient(to right, #313244 0%, #313244 100%);
+			outline: none;
+			border-radius: 6px;
+			cursor: pointer;
+			position: relative;
+		}
+		.timeline-slider::-webkit-slider-thumb {
+			-webkit-appearance: none;
+			appearance: none;
+			width: 24px;
+			height: 24px;
+			background: #a6e3a1;
+			cursor: grab;
+			border-radius: 50%;
+			border: 3px solid #11111b;
+			box-shadow: 0 2px 8px rgba(166, 227, 161, 0.4);
+			transition: all 0.2s ease;
+		}
+		.timeline-slider::-moz-range-thumb {
+			width: 24px;
+			height: 24px;
+			background: #a6e3a1;
+			cursor: grab;
+			border-radius: 50%;
+			border: 3px solid #11111b;
+			box-shadow: 0 2px 8px rgba(166, 227, 161, 0.4);
+			transition: all 0.2s ease;
+		}
+		.timeline-slider::-webkit-slider-thumb:hover {
+			background: #b4e7b9;
+			transform: scale(1.1);
+			box-shadow: 0 4px 12px rgba(166, 227, 161, 0.6);
+		}
+		.timeline-slider::-moz-range-thumb:hover {
+			background: #b4e7b9;
+			transform: scale(1.1);
+			box-shadow: 0 4px 12px rgba(166, 227, 161, 0.6);
+		}
+		.timeline-slider:active::-webkit-slider-thumb {
+			cursor: grabbing;
+			transform: scale(0.95);
+		}
+		.timeline-slider:active::-moz-range-thumb {
+			cursor: grabbing;
+			transform: scale(0.95);
+		}
 		.control-row {
 			display: flex;
 			gap: 15px;
 			align-items: center;
-			margin-bottom: 10px;
+			margin-bottom: -1rem;
 			flex-wrap: wrap;
 			justify-content: center;
 		}
@@ -104,6 +197,11 @@
 			text-align: center;
 			font-size: 13px;
 			color: #a6adc8;
+			position: fixed;
+			bottom: 20px;
+			left: 50%;
+			transform: translateX(-50%);
+			z-index: 1;
 		}
 		.legend {
 			display: flex;
@@ -181,10 +279,15 @@
 					<button id="next">Next →</button>
 					<button id="reset">↺ Reset</button>
 				</div>
-				<div class="control-row">
-					<label for="speed">Speed:</label>
-					<input type="range" id="speed" min="0" max="1000" value="900" step="5">
-					<span class="info" id="stepInfo">Step: 0 / 7845</span>
+				<div class="timeline-label">
+					<span>Timeline</span>
+					<span id="timelineStep">Step 0 of 7845</span>
+				</div>
+				<input type="range" id="timeline" class="timeline-slider" min="0" max="7845" value="0" step="1">
+				<div class="timeline-markers">
+					<div class="timeline-marker start">Start<br>0</div>
+					<div class="timeline-marker highlight" style="left: 12.746972594008923%;">Part 1<br>1000</div>
+					<div class="timeline-marker highlight end">Part 2<br>7845</div>
 				</div>
 				<div class="legend">
 					<div class="legend-item"><div class="legend-box junction"></div> Isolated Junction (small)</div>
@@ -547,13 +650,13 @@
 		const prevBtn = document.getElementById('prev');
 		const nextBtn = document.getElementById('next');
 		const resetBtn = document.getElementById('reset');
-		const speedSlider = document.getElementById('speed');
-		const stepInfo = document.getElementById('stepInfo');
+		const timelineSlider = document.getElementById('timeline');
+		const timelineStep = document.getElementById('timelineStep');
 		const statsInfo = document.getElementById('statsInfo');
 
 		function updateUI() {
 			const stage = stages[currentStage];
-			stepInfo.textContent = `Step: ${currentStage} / ${stages.length - 1}`;
+			timelineStep.textContent = `Step ${currentStage} of ${stages.length - 1}`;
 			
 			const part1Result = stages[Math.min(1000, stages.length - 1)].product;
 			const part2Result = stage.part2Product || 0;
@@ -562,6 +665,11 @@
 			
 			prevBtn.disabled = currentStage === 0;
 			nextBtn.disabled = currentStage === stages.length - 1;
+			
+			// Update timeline slider and gradient
+			timelineSlider.value = currentStage;
+			const percent = (currentStage / (stages.length - 1)) * 100;
+			timelineSlider.style.background = `linear-gradient(to right, #a6e3a1 0%, #a6e3a1 ${percent}%, #313244 ${percent}%, #313244 100%)`;
 			
 			updateConnections(stage);
 		}
@@ -574,6 +682,11 @@
 		prevBtn.addEventListener('click', () => goToStage(currentStage - 1));
 		nextBtn.addEventListener('click', () => goToStage(currentStage + 1));
 		resetBtn.addEventListener('click', () => goToStage(0));
+
+		// Timeline slider scrubbing
+		timelineSlider.addEventListener('input', (e) => {
+			goToStage(parseInt(e.target.value));
+		});
 
 		playBtn.addEventListener('click', () => {
 			isPlaying = !isPlaying;
@@ -603,17 +716,13 @@
 		function animate(time) {
 			requestAnimationFrame(animate);
 
-			// Auto-advance if playing
+			// Auto-advance if playing (zero delay - advance every frame)
 			if (isPlaying) {
-				const speed = 1000 - parseInt(speedSlider.value);
-				if (time - lastTime > speed) {
-					if (currentStage < stages.length - 1) {
-						goToStage(currentStage + 1);
-					} else {
-						isPlaying = false;
-						playBtn.textContent = '▶ Play';
-					}
-					lastTime = time;
+				if (currentStage < stages.length - 1) {
+					goToStage(currentStage + 1);
+				} else {
+					isPlaying = false;
+					playBtn.textContent = '▶ Play';
 				}
 			}
 
