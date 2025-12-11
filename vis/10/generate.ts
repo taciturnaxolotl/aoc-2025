@@ -358,6 +358,7 @@ const html = `<!DOCTYPE html>
 			justify-content: center;
 			margin: 20px 0;
 			flex-wrap: wrap;
+			padding: 10px;
 		}
 		.light {
 			width: 50px;
@@ -374,15 +375,53 @@ const html = `<!DOCTYPE html>
 			text-align: center;
 			padding: 3px;
 			line-height: 1.1;
+			position: relative;
+			background: #1e1e2e;
+		}
+		.light-inner {
+			position: absolute;
+			inset: 0;
+			border-radius: 50%;
+			overflow: hidden;
+			clip-path: circle(50% at 50% 50%);
+		}
+		.light::before {
+			content: '';
+			position: absolute;
+			bottom: 0;
+			left: -10%;
+			right: -10%;
+			width: 120%;
+			background: linear-gradient(to top, #a6e3a1, #a6e3a1cc);
+			height: var(--fill-height, 0%);
+			transition: height 0.3s ease;
+			z-index: 0;
+			border-radius: 0 0 50% 50%;
+		}
+		.light > div {
+			position: relative;
+			z-index: 1;
 		}
 		.light.off {
-			background: #1e1e2e;
 			color: #6c7086;
+			box-shadow: none;
+		}
+		.light.off::before {
+			left: -10%;
+			right: -10%;
+			width: 120%;
+			border-radius: 0 0 50% 50%;
 		}
 		.light.on {
-			background: #a6e3a1;
 			color: #1e1e2e;
-			box-shadow: 0 0 10px #a6e3a1;
+			box-shadow: 0 0 20px #a6e3a1, 0 0 30px #a6e3a180 !important;
+			overflow: visible;
+		}
+		.light.on::before {
+			left: 0;
+			right: 0;
+			width: 100%;
+			border-radius: 50%;
 		}
 		.light.target {
 			border-color: #f9e2af;
@@ -517,18 +556,37 @@ const html = `<!DOCTYPE html>
 				// Part 1: Indicator lights
 				machine.target.forEach((target, i) => {
 					const light = document.createElement('div');
-					light.className = \`light \${currentState[i] ? 'on' : 'off'} \${target ? 'target' : ''}\`;
-					light.textContent = i;
+					const isOn = currentState[i];
+					light.className = \`light \${isOn ? 'on' : 'off'} \${target ? 'target' : ''}\`;
+					light.style.setProperty('--fill-height', isOn ? '100%' : '0%');
+					const label = document.createElement('div');
+					label.textContent = i;
+					light.appendChild(label);
 					lightsDiv.appendChild(light);
 				});
 			} else {
-				// Part 2: Joltage counters
+				// Part 2: Joltage counters with fill animation
 				machine.joltages.forEach((target, i) => {
 					const counter = document.createElement('div');
 					const current = currentState[i] || 0;
-					const isTarget = current === target;
+					const isTarget = current >= target;
+					const fillPercent = target > 0 ? Math.min(100, (current / target) * 100) : 0;
+					
 					counter.className = \`light \${isTarget ? 'on' : 'off'} \${true ? 'target' : ''}\`;
-					counter.innerHTML = \`<div style="font-size: 7px; opacity: 0.7;">[\${i}]</div><div style="font-size: 10px; font-weight: bold;">\${current}/<span style="color: #f9e2af;">\${target}</span></div>\`;
+					counter.style.setProperty('--fill-height', \`\${fillPercent}%\`);
+					
+					const indexLabel = document.createElement('div');
+					indexLabel.style.fontSize = '7px';
+					indexLabel.style.opacity = '0.7';
+					indexLabel.textContent = \`[\${i}]\`;
+					
+					const valueLabel = document.createElement('div');
+					valueLabel.style.fontSize = '10px';
+					valueLabel.style.fontWeight = 'bold';
+					valueLabel.innerHTML = \`\${current}/<span style="color: #f9e2af;">\${target}</span>\`;
+					
+					counter.appendChild(indexLabel);
+					counter.appendChild(valueLabel);
 					lightsDiv.appendChild(counter);
 				});
 			}
@@ -871,12 +929,15 @@ const html = `<!DOCTYPE html>
 					updateStats();
 				}
 				
-				// Current machine done, move to next immediately
+				// Current machine done, move to next with a brief pause
 				if (currentMachineIndex < machines.length - 1) {
 					if (isPlaying) {
-						currentMachineIndex++;
-						initMachine();
-						setTimeout(animateSolution, animationSpeed);
+						// Add delay between machines (3x the normal animation speed)
+						setTimeout(() => {
+							currentMachineIndex++;
+							initMachine();
+							setTimeout(animateSolution, animationSpeed);
+						}, animationSpeed * 3);
 					}
 				} else {
 					// All done
