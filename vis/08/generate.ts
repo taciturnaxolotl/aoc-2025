@@ -10,7 +10,132 @@ const junctions = file
 		return { x, y, z };
 	});
 
+// Calculate all pairwise distances
+function distance(a, b) {
+	return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2);
+}
+
+const pairs = [];
+for (let i = 0; i < junctions.length; i++) {
+	for (let j = i + 1; j < junctions.length; j++) {
+		pairs.push({
+			i,
+			j,
+			distance: distance(junctions[i], junctions[j]),
+		});
+	}
+}
+
+// Sort by distance
+pairs.sort((a, b) => a.distance - b.distance);
+
+// Union-Find for circuit tracking
+class UnionFind {
+	constructor(n) {
+		this.parent = Array.from({ length: n }, (_, i) => i);
+		this.size = Array(n).fill(1);
+	}
+
+	find(x) {
+		if (this.parent[x] !== x) {
+			this.parent[x] = this.find(this.parent[x]);
+		}
+		return this.parent[x];
+	}
+
+	union(x, y) {
+		const rootX = this.find(x);
+		const rootY = this.find(y);
+
+		if (rootX === rootY) return false;
+
+		if (this.size[rootX] < this.size[rootY]) {
+			this.parent[rootX] = rootY;
+			this.size[rootY] += this.size[rootX];
+		} else {
+			this.parent[rootY] = rootX;
+			this.size[rootX] += this.size[rootY];
+		}
+
+		return true;
+	}
+
+	getCircuitSizes() {
+		const circuits = new Map();
+		for (let i = 0; i < this.parent.length; i++) {
+			const root = this.find(i);
+			circuits.set(root, this.size[root]);
+		}
+		return Array.from(circuits.values()).sort((a, b) => b - a);
+	}
+
+	getCircuitCount() {
+		const roots = new Set();
+		for (let i = 0; i < this.parent.length; i++) {
+			roots.add(this.find(i));
+		}
+		return roots.size;
+	}
+}
+
+// Build animation stages for Part 1 (first 1000 connections) and Part 2 (until single circuit)
+const stages = [];
+const uf = new UnionFind(junctions.length);
+const connections = [];
+let part2ConnectionIndex = -1;
+let part2Product = 0;
+
+let step = 0;
+while (true) {
+	const circuitSizes = uf.getCircuitSizes();
+	const top3 = circuitSizes.slice(0, 3);
+	const product = top3.length >= 3 ? top3[0] * top3[1] * top3[2] : 0;
+	const circuitCount = uf.getCircuitCount();
+
+	stages.push({
+		connections: [...connections],
+		circuits: circuitCount,
+		largest: circuitSizes[0] || 1,
+		product,
+		circuitSizes: [...circuitSizes],
+		part2Product: part2Product,
+	});
+
+	// Check if we've reached a single circuit (Part 2 complete)
+	if (circuitCount === 1 && part2ConnectionIndex === -1) {
+		part2ConnectionIndex = step - 1; // The previous connection completed it
+		if (part2ConnectionIndex >= 0) {
+			const lastPair = pairs[part2ConnectionIndex];
+			part2Product = junctions[lastPair.i].x * junctions[lastPair.j].x;
+		}
+		// Update the current stage with the part2Product
+		stages[stages.length - 1].part2Product = part2Product;
+	}
+
+	// Stop after reaching single circuit, or if we've exhausted pairs
+	if (circuitCount === 1 || step >= pairs.length) {
+		break;
+	}
+
+	const pair = pairs[step];
+	uf.union(pair.i, pair.j);
+	connections.push(pair);
+	step++;
+}
+
+console.log(
+	"Part 1: After 1000 connections, product =",
+	stages[Math.min(1000, stages.length - 1)].product,
+);
+console.log(
+	"Part 2: Single circuit at connection",
+	part2ConnectionIndex,
+	", product =",
+	part2Product,
+);
+
 const inputData = JSON.stringify(junctions);
+const maxConnections = stages[stages.length - 1].connections.length;
 
 const html = `<!DOCTYPE html>
 <html lang="en">
@@ -198,7 +323,7 @@ const html = `<!DOCTYPE html>
 				<div class="control-row">
 					<label for="speed">Speed:</label>
 					<input type="range" id="speed" min="0" max="1000" value="900" step="5">
-					<span class="info" id="stepInfo">Step: 0 / 1000</span>
+					<span class="info" id="stepInfo">Step: 0 / ${stages.length - 1}</span>
 				</div>
 				<div class="legend">
 					<div class="legend-item"><div class="legend-box junction"></div> Isolated Junction (small)</div>
@@ -208,7 +333,7 @@ const html = `<!DOCTYPE html>
 			</div>
 
 			<div class="stats">
-				<div id="statsInfo">Circuits: ${junctions.length} | Largest: 0 | Product: 0</div>
+				<div id="statsInfo">Circuits: ${junctions.length} | Largest: 0 | Part 1: 0 | Part 2: 0</div>
 				<div style="margin-top: 5px; font-size: 11px;"><a href="../index.html">[Return to Index]</a></div>
 			</div>
 		</div>
@@ -296,32 +421,63 @@ const html = `<!DOCTYPE html>
 				}
 				return Array.from(circuits.values()).sort((a, b) => b - a);
 			}
+
+			getCircuitCount() {
+				const roots = new Set();
+				for (let i = 0; i < this.parent.length; i++) {
+					roots.add(this.find(i));
+				}
+				return roots.size;
+			}
 		}
 
-		// Build animation stages (connections to make)
+		// Build animation stages for Part 1 (first 1000 connections) and Part 2 (until single circuit)
 		const stages = [];
 		const uf = new UnionFind(junctions.length);
 		const connections = [];
+		let part2ConnectionIndex = -1;
+		let part2Product = 0;
 
-		for (let step = 0; step <= 1000; step++) {
+		let step = 0;
+		while (true) {
 			const circuitSizes = uf.getCircuitSizes();
 			const top3 = circuitSizes.slice(0, 3);
 			const product = top3.length >= 3 ? top3[0] * top3[1] * top3[2] : 0;
+			const circuitCount = uf.getCircuitCount();
 			
 			stages.push({
 				connections: [...connections],
-				circuits: circuitSizes.length,
+				circuits: circuitCount,
 				largest: circuitSizes[0] || 1,
 				product,
-				circuitSizes: [...circuitSizes]
+				circuitSizes: [...circuitSizes],
+				part2Product: part2Product
 			});
 
-			if (step < 1000) {
-				const pair = pairs[step];
-				uf.union(pair.i, pair.j);
-				connections.push(pair);
+			// Check if we've reached a single circuit (Part 2 complete)
+			if (circuitCount === 1 && part2ConnectionIndex === -1) {
+				part2ConnectionIndex = step - 1; // The previous connection completed it
+				if (part2ConnectionIndex >= 0) {
+					const lastPair = pairs[part2ConnectionIndex];
+					part2Product = junctions[lastPair.i].x * junctions[lastPair.j].x;
+				}
+				// Update the current stage with the part2Product
+				stages[stages.length - 1].part2Product = part2Product;
 			}
+
+			// Stop after reaching single circuit, or if we've exhausted pairs
+			if (circuitCount === 1 || step >= pairs.length) {
+				break;
+			}
+
+			const pair = pairs[step];
+			uf.union(pair.i, pair.j);
+			connections.push(pair);
+			step++;
 		}
+
+		console.log('Part 1: After 1000 connections, product =', stages[Math.min(1000, stages.length - 1)].product);
+		console.log('Part 2: Single circuit at connection', part2ConnectionIndex, ', product =', part2Product);
 
 		// Three.js setup
 		const scene = new THREE.Scene();
@@ -382,12 +538,15 @@ const html = `<!DOCTYPE html>
 			return mesh;
 		});
 
-		// Connection lines - pre-render all cylinders
+		// Connection lines - pre-render all cylinders (enough to reach single circuit)
 		let connectionCylinders = [];
 		
+		// Determine how many connections we need (until single circuit)
+		const maxConnections = Math.min(pairs.length, stages[stages.length - 1].connections.length);
+		
 		// Pre-create all connection cylinders
-		console.log('Pre-rendering', pairs.slice(0, 1000).length, 'connections...');
-		pairs.slice(0, 1000).forEach((pair, idx) => {
+		console.log('Pre-rendering', maxConnections, 'connections...');
+		pairs.slice(0, maxConnections).forEach((pair, idx) => {
 			const j1 = junctions[pair.i];
 			const j2 = junctions[pair.j];
 			
@@ -533,8 +692,12 @@ const html = `<!DOCTYPE html>
 
 		function updateUI() {
 			const stage = stages[currentStage];
-			stepInfo.textContent = \`Step: \${currentStage} / 1000\`;
-			statsInfo.textContent = \`Circuits: \${stage.circuits} | Largest: \${stage.largest} | Product: \${stage.product.toLocaleString()}\`;
+			stepInfo.textContent = \`Step: \${currentStage} / \${stages.length - 1}\`;
+			
+			const part1Result = stages[Math.min(1000, stages.length - 1)].product;
+			const part2Result = stage.part2Product || 0;
+			
+			statsInfo.textContent = \`Circuits: \${stage.circuits} | Largest: \${stage.largest} | Part 1: \${part1Result.toLocaleString()} | Part 2: \${part2Result.toLocaleString()}\`;
 			
 			prevBtn.disabled = currentStage === 0;
 			nextBtn.disabled = currentStage === stages.length - 1;
