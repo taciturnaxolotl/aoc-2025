@@ -62,6 +62,16 @@ const dayInfo: Record<string, { title: string; description: string }> = {
 		description:
 			"3D visualization of junction boxes being connected by their shortest distances. Watch circuits form as connections merge isolated boxes into larger groups.",
 	},
+	"09": {
+		title: "Movie Theater Floor",
+		description:
+			"Find the largest rectangle using red tiles as opposite corners. Part 1 allows any rectangle, Part 2 requires rectangles to only contain red/green tiles.",
+	},
+	"10": {
+		title: "Factory Machines",
+		description:
+			"Configure indicator lights by pressing buttons that toggle specific lights. Find the minimum number of button presses to match the target configuration.",
+	},
 };
 
 const dayCards = days
